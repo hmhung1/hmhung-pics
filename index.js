@@ -11,7 +11,17 @@ const userVideosDir = path.join(__dirname, 'user-video');
 
 // Hàm tạo tên tệp ngẫu nhiên với độ dài 5 ký tự
 const generateRandomFileName = () => {
-  return Math.random().toString(36).substring(2, 7) + '.mp4'; // Tạo tên tệp ngẫu nhiên
+  return Math.random().toString(36).substring(2, 7); // Tạo tên tệp ngẫu nhiên
+};
+
+// Kiểm tra loại tệp
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = ['video/mp4', 'audio/mp3', 'image/jpeg', 'image/png'];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true); // Cho phép tệp
+  } else {
+    cb(new Error('Loại tệp không được phép!'), false); // Từ chối tệp
+  }
 };
 
 // Cấu hình multer để lưu video
@@ -20,12 +30,13 @@ const storage = multer.diskStorage({
     cb(null, userVideosDir);
   },
   filename: (req, file, cb) => {
-    const randomFileName = generateRandomFileName(); // Tạo tên ngẫu nhiên
+    const randomFileName = generateRandomFileName() + path.extname(file.originalname); // Tạo tên ngẫu nhiên với phần mở rộng
     cb(null, randomFileName); // Lưu tệp với tên ngẫu nhiên
   },
 });
 
-const upload = multer({ storage });
+const upload = multer({ storage, fileFilter }); // Thêm fileFilter vào multer
+
 const stickerDir = path.join(__dirname, 'sticker'); // Thêm thư mục sticker
 
 app.get('/', (req, res) => {
@@ -64,10 +75,10 @@ app.get('/', (req, res) => {
               100% { transform: translateY(-20px); }
             }
             img {
-              width: 150px; /* Thay đổi kích thước sticker nếu cần */
+              width: 150px;
               margin-top: 20px;
-              border-radius: 10px; /* Làm tròn các góc của sticker */
-              box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5); /* Thêm bóng cho sticker */
+              border-radius: 10px;
+              box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
             }
             .container {
               text-align: center;
@@ -85,7 +96,6 @@ app.get('/', (req, res) => {
   });
 });
 
-
 // Endpoint để phục vụ sticker
 app.get('/sticker/:filename', (req, res) => {
   const options = {
@@ -93,7 +103,6 @@ app.get('/sticker/:filename', (req, res) => {
   };
   res.sendFile(req.params.filename, options);
 });
-
 
 app.get('/vdgai', (req, res) => {
   fs.readdir(videosDir, (err, files) => {
