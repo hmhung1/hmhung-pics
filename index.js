@@ -2,12 +2,16 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const axios = require('axios');
+const mime = require('mime-types');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 const videosDir = path.join(__dirname, 'girl-video');
 const userVideosDir = path.join(__dirname, 'user-video');
+
+app.use(express.json()); // Thêm middleware để phân tích JSON
 
 // Hàm tạo tên tệp ngẫu nhiên với độ dài 5 ký tự
 const generateRandomFileName = () => {
@@ -35,9 +39,9 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({ storage, fileFilter }); // Thêm fileFilter vào multer
+const upload = multer({ storage, fileFilter });
 
-const stickerDir = path.join(__dirname, 'sticker'); // Thêm thư mục sticker
+const stickerDir = path.join(__dirname, 'sticker');
 
 app.get('/', (req, res) => {
   fs.readdir(stickerDir, (err, files) => {
@@ -125,18 +129,40 @@ app.get('/girl/:filename', (req, res) => {
   res.sendFile(req.params.filename, options);
 });
 
-// Endpoint POST để tải video lên
+// Endpoint POST để tải video lên từ tệp
 app.post('/upload', upload.single('video'), (req, res) => {
   if (!req.file) return res.status(400).send('No file uploaded.');
   const url = `${req.protocol}://${req.get('host')}/files/${req.file.filename}`;
   res.json({ message: 'File uploaded successfully', url });
 });
 
+// Endpoint GET để tải video hoặc hình ảnh từ URL
+app.get('/upload-url', async (req, res) => {
+  const { url } = req.query; // Lấy URL từ query parameters
+  if (!url) return res.status(400).send('URL không được cung cấp.');
+
+  try {
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const mimeType = response.headers['content-type'];
+    const ext = mime.extension(mimeType) || '.bin'; // Lấy phần mở rộng từ loại MIME hoặc mặc định là .bin
+    const randomFileName = generateRandomFileName() + '.' + ext;
+    const localPath = path.join(userVideosDir, randomFileName);
+
+    fs.writeFileSync(localPath, response.data);
+    const fileUrl = `${req.protocol}://${req.get('host')}/files/${randomFileName}`;
+
+    res.json({ message: 'File uploaded successfully', url: fileUrl });
+  } catch (error) {
+    console.error('Lỗi khi tải video từ URL:', error);
+    res.status(500).send('Lỗi khi tải video từ URL.');
+  }
+});
+
 app.get('/files/', (req, res) => {
   fs.readdir(userVideosDir, (err, files) => {
     if (err) return res.status(500).send('Error reading directory');
 
-    const videoFiles = files.filter(file => /\.(mp4|mov|avi)$/.test(file));
+    const videoFiles = files.filter(file => /\.(mp4|mov|avi|mp3|jpg|png)$/.test(file));
     if (videoFiles.length === 0) return res.status(404).send('No user videos found');
 
     const urls = videoFiles.map(file => `${req.protocol}://${req.get('host')}/files/${file}`);
